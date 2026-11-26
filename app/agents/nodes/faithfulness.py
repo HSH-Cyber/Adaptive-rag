@@ -77,6 +77,7 @@ async def faithfulness_node(
     if (
         state.get("refused")
         or state.get("pending_action")
+        or (state.get("extra") or {}).get("authoritative_policy")
         or (state.get("extra") or {}).get("missing_order_id")
     ):
         return {}

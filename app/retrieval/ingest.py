@@ -68,22 +68,29 @@ def category_for_stem(stem: str) -> DocumentCategory:
 class KnowledgeIngestor:
     def __init__(
         self,
+        #知识库文件夹（用来读取文件）
         knowledge_dir: str,
+        #负责向量化的模型（把文字转换成向量）
         embedder: EmbeddingProvider,
+        #系统配置
         settings: Settings | None = None,
     ) -> None:
         self._knowledge_dir = Path(knowledge_dir)
         self._embedder = embedder
         self._settings = settings or get_settings()
 
+    #load() 的核心任务是：找到文件、识别类别、解析文件、获得文本
     async def load(self) -> tuple[list[RetrievedChunk], list[VectorRecord]]:
+        #获取知识库目录中支持的文件
         files = list_knowledge_files(self._knowledge_dir)
         chunks: list[RetrievedChunk] = []
         for path in files:
             category = category_for_stem(path.stem)
+            #为每份文件生成一个稳定的文档 ID
             document_id = document_id_from_path(path, root=self._knowledge_dir)
             title = path.stem
             file_chunks = await asyncio.to_thread(
+                #解析文件内容，把文件转换成文本内容
                 parse_path,
                 path,
                 document_id=document_id,

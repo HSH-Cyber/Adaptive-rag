@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import time
 
 from app.agents.state import AgentState
@@ -14,13 +12,11 @@ from app.core.exceptions import (
     ToolExecutionError,
     ToolPermissionError,
 )
-from app.core.request_scope import get_db_session
 from app.observability.metrics import TOOL_CALLS
-from app.repositories.idempotency import IdempotencyRepository
 from app.schemas.agent import PlanStep, ToolResult
 from app.schemas.common import LatencyBreakdown
 from app.tools.base import Tool, ToolContext
-from app.tools.permissions import WRITE_RISKS, assert_permitted
+from app.tools.permissions import WRITE_RISKS
 from app.tools.registry import ToolRegistry
 
 READ_FALLBACKS: dict[str, list[str]] = {
@@ -37,13 +33,6 @@ READ_FALLBACKS: dict[str, list[str]] = {
     "mcp_store_hours": ["search_knowledge"],
     "mcp_warehouse_cutoff": ["search_knowledge"],
 }
-
-
-def _fingerprint(tool_name: str, arguments: dict) -> str:
-    payload = json.dumps(
-        {"tool": tool_name, "arguments": arguments}, sort_keys=True, ensure_ascii=False
-    )
-    return hashlib.sha256(payload.encode()).hexdigest()
 
 
 def fallback_arguments(tool_name: str, step: PlanStep, query: str) -> dict:
@@ -113,7 +102,6 @@ async def executor_node(
         confirmed_action_id=state.get("confirm_action_id"),
         idempotency_key=state.get("idempotency_key"),
     )
-    idempotency = IdempotencyRepository(get_db_session())
     calls = 0
     query = state["user_query"]
     for step in plan.steps:
@@ -125,29 +113,9 @@ async def executor_node(
         if not step.tool_name:
             continue
         tool = registry.get(step.tool_name)
-        confirmed = bool(state.get("confirm_action_id"))
         try:
             if tool.risk in WRITE_RISKS:
-                assert_permitted(tool, confirmed=confirmed)
-                idem_key = context.confirmed_action_id or context.idempotency_key
-                if idem_key:
-                    fp = _fingerprint(tool.name, step.arguments)
-                    existing = await idempotency.get_if_matches(idem_key, fp)
-                    if existing is not None:
-                        results.append(
-                            ToolResult(
-                                name=tool.name, success=True, output=existing, risk=tool.risk
-                            )
-                        )
-                        TOOL_CALLS.labels(tool=tool.name, status="idempotent").inc()
-                        calls += 1
-                        continue
-                    result = await tool.run(step.arguments, context)
-                    await idempotency.put(idem_key, fp, result.output)
-                    TOOL_CALLS.labels(tool=tool.name, status="ok").inc()
-                    results.append(result)
-                    calls += 1
-                    continue
+                raise ToolPermissionError("写操作必须通过持久化操作记录确认，不能由模型直接执行。")
             result = await execute_with_fallback(tool, step, context, registry, query)
             TOOL_CALLS.labels(tool=tool.name, status="ok").inc()
             results.append(result)

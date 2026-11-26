@@ -1,5 +1,6 @@
 """BM25 lexical retriever over a jieba-tokenised inverted index."""
 
+# 它可以把中文句子切成一个个词语。
 from __future__ import annotations
 
 from collections import defaultdict
@@ -7,9 +8,10 @@ from collections import defaultdict
 from rank_bm25 import BM25Okapi
 
 from app.retrieval.tokenizer import tokenize
-from app.schemas.retrieval import RetrievedChunk
+from app.schemas.retrieval import RetrievalScope, RetrievedChunk
 
 
+# BM25 是一种基于关键词匹配的文本检索算法。
 class BM25Retriever:
     """Lexical retriever. Complements dense search on exact policy numbers / SKUs."""
 
@@ -20,16 +22,24 @@ class BM25Retriever:
             self.build(corpus)
 
     def build(self, corpus: list[RetrievedChunk]) -> None:
+        # 保存全部文本块。
         self._chunks = list(corpus)
+        # 把每个文本块拆成关键词。
         tokenized = [tokenize(chunk.content) for chunk in self._chunks]
         # BM25Okapi requires a non-empty corpus; keep None if ingest has not run.
+        # 建立 BM25 检索索引。
         self._bm25 = BM25Okapi(tokenized) if tokenized else None
 
-    def search(self, query: str, *, top_k: int) -> list[RetrievedChunk]:
+    def search(
+        self, query: str, *, top_k: int, scope: RetrievalScope | None = None
+    ) -> list[RetrievedChunk]:
         if self._bm25 is None or not self._chunks:
             return []
         scores = self._bm25.get_scores(tokenize(query))
-        ranked = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:top_k]
+        candidates = [
+            i for i, chunk in enumerate(self._chunks) if scope is None or scope.allows(chunk)
+        ]
+        ranked = sorted(candidates, key=lambda i: scores[i], reverse=True)[:top_k]
         results: list[RetrievedChunk] = []
         for rank, index in enumerate(ranked, start=1):
             # BM25 IDF can be negative on tiny corpora; still return the ranked docs.

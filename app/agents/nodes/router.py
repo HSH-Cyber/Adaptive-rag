@@ -18,9 +18,11 @@ def _latency(state: AgentState) -> LatencyBreakdown:
 
 async def intent_node(state: AgentState, classifier: IntentClassifier) -> dict:
     started = time.perf_counter()
+    #调用分类器分析用户问题。
     intent = await classifier.classify(state["user_query"])
     latency = _latency(state)
     latency.intent_ms = (time.perf_counter() - started) * 1000
+    #把识别结果更新到 State 中。
     return {"intent": intent, "latency": latency}
 
 

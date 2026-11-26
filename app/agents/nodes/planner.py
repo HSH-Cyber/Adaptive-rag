@@ -135,6 +135,7 @@ def _tool_arguments(tool_name: str, query: str) -> dict:
     if tool_name in {
         "get_order",
         "get_order_items",
+        "check_aftersale_eligibility",
         "track_shipment",
         "cancel_order",
         "create_return_request",
@@ -143,6 +144,12 @@ def _tool_arguments(tool_name: str, query: str) -> dict:
         match = _ORDER_RE.search(query)
         if match:
             arguments = {"order_id": match.group(0).upper()}
+            if (
+                tool_name == "check_aftersale_eligibility"
+                and "退款" in query
+                and "退货" not in query
+            ):
+                arguments["tool_name"] = "create_refund_request"
             if tool_name in {"create_return_request", "create_refund_request"}:
                 arguments["reason"] = query[:200]
             return arguments

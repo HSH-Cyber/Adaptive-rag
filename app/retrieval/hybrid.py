@@ -10,7 +10,7 @@ from app.retrieval.bm25 import BM25Retriever
 from app.retrieval.cache import RetrievalCache
 from app.retrieval.fusion import reciprocal_rank_fusion
 from app.retrieval.vector import VectorRetriever
-from app.schemas.retrieval import RetrievedChunk
+from app.schemas.retrieval import RetrievalScope, RetrievedChunk
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +34,12 @@ class HybridRetriever:
         self._rrf_k = rrf_k
         self._cache = cache
 
-    async def retrieve(self, query: str, *, top_k: int) -> list[RetrievedChunk]:
+    async def retrieve(
+        self, query: str, *, top_k: int, scope: RetrievalScope | None = None
+    ) -> list[RetrievedChunk]:
+        options = {"scope": scope} if scope is not None else {}
         if self._cache is not None:
-            cached = await self._cache.get(query, top_k)
+            cached = await self._cache.get(query, top_k, **options)
             if cached is not None:
                 return cached
         started = time.perf_counter()
@@ -45,12 +48,12 @@ class HybridRetriever:
         lexical_error: Exception | None = None
         dense_error: Exception | None = None
         try:
-            lexical = self._bm25.search(query, top_k=top_k)
+            lexical = self._bm25.search(query, top_k=top_k, **options)
         except Exception as exc:  # BM25 is in-process; unexpected errors still isolated
             lexical_error = exc
             logger.exception("bm25_failed")
         try:
-            dense = await self._vector.search(query, top_k=top_k)
+            dense = await self._vector.search(query, top_k=top_k, **options)
         except Exception as exc:
             dense_error = exc
             logger.exception("vector_search_failed")
@@ -72,5 +75,5 @@ class HybridRetriever:
         )
         trimmed = fused[:top_k]
         if self._cache is not None:
-            await self._cache.set(query, top_k, trimmed)
+            await self._cache.set(query, top_k, trimmed, **options)
         return trimmed

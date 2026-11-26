@@ -153,6 +153,13 @@ class OrderRepository:
             description=row.description,
         )
 
+    async def categories_for_order(self, order: Order) -> dict[str, str]:
+        """Resolve authoritative product categories for policy applicability."""
+        products = await self._session.scalars(
+            select(ProductRow).where(ProductRow.sku.in_([item.sku for item in order.items]))
+        )
+        return {product.sku: product.category for product in products}
+
     async def search_products(self, query: str, *, limit: int = 5) -> list[Product]:
         pattern = f"%{escape_like(query)}%"
         result = await self._session.execute(

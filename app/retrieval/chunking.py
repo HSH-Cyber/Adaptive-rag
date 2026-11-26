@@ -11,7 +11,9 @@ from app.retrieval.cleaning import normalize_text
 from app.schemas.retrieval import RetrievedChunk
 
 _HEADING = re.compile(r"^#{1,3}\s+(.*)$")
+#每个文本块最大约 500 个字符。
 MAX_CHUNK_CHARS = 500
+#相邻文本块之间保留约 60 个字符的重叠。如果恰好在句子中间切开，可能导致前后信息分离。
 OVERLAP_CHARS = 60
 
 
@@ -92,9 +94,12 @@ def _window(text: str, size: int, overlap: int) -> list[str]:
     pieces: list[str] = []
     start = 0
     while start < len(cleaned):
+        #计算当前文本块的结束位置。
         end = min(len(cleaned), start + size)
+        #把当前文本块保存下来。
         pieces.append(cleaned[start:end])
         if end == len(cleaned):
             break
+        #让下一块从上一块结束位置往前退 60 个字符。
         start = max(end - overlap, start + 1)
     return pieces

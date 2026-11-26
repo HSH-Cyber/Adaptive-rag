@@ -13,7 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 from starlette.staticfiles import StaticFiles
 
-from app.api.routes import admin, chat, health
+from app.api.routes import actions, admin, chat, health
 from app.config.settings import Settings, get_settings
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import AppError
@@ -26,6 +26,7 @@ from app.services.container import build_container
 logger = logging.getLogger(__name__)
 
 
+# 装饰器注释：创建一个可以管理启动和关闭过程的异步上下文管理器。
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Build the container on startup and release it on shutdown."""
@@ -39,6 +40,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await container.aclose()
 
 
+# 最终返回的是一个 FastAPI 应用对象。
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Create the FastAPI application.
 
@@ -64,9 +66,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     prefix = resolved.api_v1_prefix
+    # 把其他文件中定义的 API 接口，注册到当前应用中。加入功能
+    # API路径前缀
     app.include_router(health.router, prefix=prefix)
     app.include_router(chat.router, prefix=prefix)
     app.include_router(admin.router, prefix=prefix)
+    app.include_router(actions.router, prefix=prefix)
 
     @app.middleware("http")
     async def request_context(request: Request, call_next):

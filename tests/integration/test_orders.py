@@ -87,13 +87,14 @@ async def test_seed_fills_missing_rows_without_overwriting_existing_orders(sessi
 
 
 @pytest.mark.asyncio
-async def test_refund_tool_persists_via_repository(session_factory) -> None:
+async def test_refund_tool_cannot_bypass_durable_confirmation(session_factory) -> None:
     async with request_session(session_factory) as session:
         tool = CreateRefundRequestTool(OrderRepository(session))
         ctx = ToolContext(user_id="u_demo", session_id="s", trace_id="t")
-        result = await tool.run({"order_id": "ORD10003", "reason": "质量问题"}, ctx)
-        assert result.success
-        await session.commit()
+        from app.core.exceptions import ToolPermissionError
+
+        with pytest.raises(ToolPermissionError):
+            await tool.run({"order_id": "ORD10003", "reason": "质量问题"}, ctx)
     async with request_session(session_factory) as session:
         refunds = await OrderRepository(session).get_refunds("ORD10003")
-        assert refunds[0].status == "requested"
+        assert refunds == []

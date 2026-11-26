@@ -22,3 +22,13 @@ TOOL_CALLS = Counter("cs_tool_calls_total", "Tool invocations", ["tool", "status
 TOKEN_USAGE = Counter("cs_tokens_total", "LLM tokens", ["kind"])
 HALLUCINATION_FLAGS = Counter("cs_hallucination_flags_total", "Faithfulness failures")
 ROUTING = Counter("cs_routing_total", "Adaptive-RAG routing decisions", ["strategy"])
+
+ACTION_CONFIRMATIONS = Counter(
+    "cs_action_confirmations_total",
+    "Confirmed action responses, including receipt replay",
+    ["provider", "status"],
+)
+ACTION_LATENCY = Histogram(
+    "cs_action_confirmation_seconds", "Confirmed action service latency", ["provider"]
+)
+ACTION_RECOVERIES = Counter("cs_action_recoveries_total", "Reconciliation outcomes", ["status"])

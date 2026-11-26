@@ -3,6 +3,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import InvalidRequestError
 from app.core.time import utcnow
 from app.repositories.models import MessageRow, SessionRow
 from app.schemas.chat import ChatMessage
@@ -14,6 +15,8 @@ class SessionRepository:
 
     async def get_or_create(self, session_id: str, user_id: str) -> SessionRow:
         row = await self._session.get(SessionRow, session_id)
+        if row is not None and row.user_id != user_id:
+            raise InvalidRequestError("会话不存在或不属于当前用户。")
         if row is None:
             row = SessionRow(session_id=session_id, user_id=user_id)
             self._session.add(row)

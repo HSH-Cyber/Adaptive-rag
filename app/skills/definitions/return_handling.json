@@ -8,5 +8,5 @@
     "判断是否在时效内",
     "如需提交申请则创建待确认写操作"
   ],
-  "tools": ["get_order", "get_order_items", "search_knowledge", "create_return_request"]
+  "tools": ["get_order", "get_order_items", "search_knowledge", "check_aftersale_eligibility", "create_return_request", "create_refund_request"]
 }

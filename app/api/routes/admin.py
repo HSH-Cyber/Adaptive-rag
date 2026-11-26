@@ -2,7 +2,7 @@
 
 import hmac
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from app.api.dependencies import get_container
 from app.core.exceptions import UnauthorizedError
@@ -32,3 +32,13 @@ async def list_tools(container: AppContainer = Depends(get_container)) -> dict:
 @router.get("/skills", dependencies=[Depends(require_admin)])
 async def list_skills() -> dict:
     return {"skills": load_skills()}
+
+
+@router.post("/actions/recover", dependencies=[Depends(require_admin)])
+async def recover_actions(
+    limit: int = Query(default=20, ge=1, le=100),
+    container: AppContainer = Depends(get_container),
+) -> dict:
+    """Run a bounded reconciliation batch under the existing admin protection."""
+    results = await container.chat_service.actions.recover(limit=limit)
+    return {"actions": [r.model_dump(mode="json") for r in results]}

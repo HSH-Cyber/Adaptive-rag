@@ -8,7 +8,7 @@ class AppEnv(str, Enum):
     TESTING = "testing"
     PRODUCTION = "production"
 
-
+#14种意图
 class IntentLabel(str, Enum):
     GREETING = "greeting"
     CHITCHAT = "chitchat"

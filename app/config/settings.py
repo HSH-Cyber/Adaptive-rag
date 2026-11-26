@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     unstructured_force: bool = False
     mcp_enabled: bool = True
     mcp_remote_url: str = ""
+    policy_enabled: bool = False
+    policy_manifest: str = ""
+    policy_snapshot_dir: str = "data/local/policy_snapshots"
+    action_gateway: Literal["local", "demo"] = "local"
+    action_gateway_db: str = "data/local/demo_gateway.sqlite3"
 
     @property
     def llm_configured(self) -> bool:

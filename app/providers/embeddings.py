@@ -29,7 +29,8 @@ def _l2_normalize(vector: list[float]) -> list[float]:
 def _local_backend_name(model_id: str) -> str:
     return model_id.rsplit("/", 1)[-1].lower()
 
-
+#使用哈希方式生成测试向量
+#HashEmbeddingProvider 主要用于测试和降级场景，不能把它当成真正具备语义理解能力的 Embedding 模型。
 class HashEmbeddingProvider:
     """Deterministic embedding used when local dense / embedding API is unavailable.
 
@@ -57,7 +58,7 @@ class HashEmbeddingProvider:
                 vector[index] += 1.0
         return _l2_normalize(vector)
 
-
+#使用本地 BGE 模型
 class BgeM3EmbeddingProvider:
     """Local dense embeddings via sentence-transformers (bi-encoder recall).
 
@@ -140,6 +141,7 @@ class BgeM3EmbeddingProvider:
         except LLMProviderError:
             return False
 
+    #把一组文本转换成一组向量
     async def embed(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
@@ -161,12 +163,13 @@ class BgeM3EmbeddingProvider:
             return [[float(value) for value in raw]]
         return [[float(value) for value in row] for row in raw]
 
-
+#调用兼容 OpenAI 格式的 Embedding API
 class OpenAICompatibleEmbeddingProvider:
     backend = "openai-compatible"
 
     def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None) -> None:
         self._settings = settings
+        #向量维度：就是每一段文字最终被表示成 512 个数字
         self.dim = settings.embedding_dim
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
@@ -209,7 +212,7 @@ class OpenAICompatibleEmbeddingProvider:
 
         return await with_exponential_backoff(_call, operation_name="embeddings.embed")
 
-
+#选择embedding提供者：优先使用远程 OpenAI 兼容 API，然后是本地稠密模型，最后是哈希。
 def build_embedding_provider(settings: Settings, *, model: Any | None = None) -> Any:
     """Prefer remote OpenAI-compatible API, then local dense model, then hash."""
     if settings.embedding_configured:

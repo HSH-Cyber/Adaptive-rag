@@ -7,7 +7,7 @@ from typing import Any, Protocol
 from pydantic import BaseModel, ValidationError
 
 from app.core.enums import ToolRisk
-from app.core.exceptions import InvalidRequestError, ToolExecutionError
+from app.core.exceptions import InvalidRequestError, ToolExecutionError, ToolPermissionError
 from app.schemas.agent import ToolResult
 
 
@@ -72,7 +72,7 @@ class Tool:
         parsed = self.parse(arguments)
         try:
             return await self.execute(parsed, context)
-        except InvalidRequestError:
+        except (InvalidRequestError, ToolPermissionError):
             raise
         except Exception as exc:
             raise ToolExecutionError(f"{self.name} failed") from exc

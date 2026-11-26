@@ -2,6 +2,8 @@
 
 > 一句话：改 Prompt 或切分后必须跑全集；简历数字只能来自 `eval/runner` 与 [`MEASURED.md`](../eval/MEASURED.md)。完整口径、消融与路径表见 [14 · 测评报告](14-evaluation-report.md)。
 
+本次可靠售后改造另有事务、并发、回执恢复与政策适用测试，见 [运行与面试讲解](reliable-aftersales-agent.md)。这些测试不等同于 RAG 生成效果评测，也不修改下文原有模型指标。
+
 ## 本章目录
 
 1. [命令与数据集](#命令与数据集)

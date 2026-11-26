@@ -113,3 +113,47 @@ class IdempotencyRow(Base):
     fingerprint: Mapped[str] = mapped_column(String(64))
     response_json: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class OperationRow(Base):
+    """An immutable proposal and the lifecycle of its business effect."""
+
+    __tablename__ = "operations"
+    action_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(64), index=True)
+    session_id: Mapped[str] = mapped_column(String(64), index=True)
+    tool_name: Mapped[str] = mapped_column(String(64))
+    order_id: Mapped[str] = mapped_column(String(32), index=True)
+    arguments_json: Mapped[str] = mapped_column(Text)
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    order_snapshot_hash: Mapped[str] = mapped_column(String(64))
+    order_facts_json: Mapped[str] = mapped_column(Text, default="{}")
+    status: Mapped[str] = mapped_column(String(32), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    attempt: Mapped[int] = mapped_column(Integer, default=0)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    provider: Mapped[str] = mapped_column(String(32), default="local")
+    receipt_json: Mapped[str] = mapped_column(Text, default="{}")
+    policy_evidence_json: Mapped[str] = mapped_column(Text, default="{}")
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class OperationEventRow(Base):
+    __tablename__ = "operation_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    action_id: Mapped[str] = mapped_column(String(64), index=True)
+    status: Mapped[str] = mapped_column(String(32))
+    reason: Mapped[str] = mapped_column(String(128), default="")
+    trace_id: Mapped[str] = mapped_column(String(64))
+    attempt: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class OrderReservationRow(Base):
+    """Remote effects keep the order reserved until their outcome is known."""
+
+    __tablename__ = "order_reservations"
+    order_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    action_id: Mapped[str] = mapped_column(String(64), unique=True)

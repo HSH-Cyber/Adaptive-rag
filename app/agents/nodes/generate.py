@@ -46,6 +46,24 @@ async def generate_node(state: AgentState, llm: LLMProvider) -> dict:
             "refused": False,
             "latency": latency,
         }
+    policy_result = next(
+        (t for t in tools if t.name == "check_aftersale_eligibility" and t.success), None
+    )
+    if policy_result is not None:
+        return {
+            "final_answer": str(policy_result.output["reason"]),
+            "citations": [
+                Citation(
+                    document_id=c["document_id"],
+                    title=c["title"],
+                    chunk_id=c["chunk_id"],
+                    policy_version=c["policy_version"],
+                    source_digest=c["metadata"]["source_digest"],
+                )
+                for c in policy_result.output.get("sources", [])
+            ],
+            "extra": {**(state.get("extra") or {}), "authoritative_policy": True},
+        }
     evidence = (
         "\n\n".join(f"[{c.chunk_id}] {c.title}\n{c.content}" for c in chunks[:6]) or "(无检索结果)"
     )
@@ -83,6 +101,7 @@ async def generate_node(state: AgentState, llm: LLMProvider) -> dict:
             messages,
             temperature=0.2,
             max_tokens=700,
+            # 要求模型以 JSON 对象格式返回。
             response_format={"type": "json_object"},
         )
         payload = parse_model(response.content, AnswerPayload)

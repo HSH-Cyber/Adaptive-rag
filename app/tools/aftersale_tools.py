@@ -3,6 +3,7 @@
 from pydantic import BaseModel, Field
 
 from app.core.enums import ToolRisk
+from app.core.exceptions import ToolPermissionError
 from app.schemas.agent import ToolResult
 from app.tools.base import Tool, ToolContext
 from app.tools.deps import RepositoryBackedTool
@@ -77,13 +78,7 @@ class CreateRefundRequestTool(RepositoryBackedTool, Tool):
     input_model = RefundCreateInput
 
     async def execute(self, parsed: RefundCreateInput, context: ToolContext) -> ToolResult:
-        await self.repository.get_visible_order(parsed.order_id, context.user_id)
-        output = await self.repository.create_refund(
-            order_id=parsed.order_id,
-            reason=parsed.reason,
-            trace_id=context.trace_id,
-        )
-        return ToolResult(name=self.name, success=True, output=output)
+        raise ToolPermissionError("请通过 ActionService 确认已持久化的退款操作。")
 
 
 class CreateReturnRequestTool(RepositoryBackedTool, Tool):
@@ -100,13 +95,7 @@ class CreateReturnRequestTool(RepositoryBackedTool, Tool):
     input_model = RefundCreateInput
 
     async def execute(self, parsed: RefundCreateInput, context: ToolContext) -> ToolResult:
-        await self.repository.get_visible_order(parsed.order_id, context.user_id)
-        output = await self.repository.create_return(
-            order_id=parsed.order_id,
-            reason=parsed.reason,
-            trace_id=context.trace_id,
-        )
-        return ToolResult(name=self.name, success=True, output=output)
+        raise ToolPermissionError("请通过 ActionService 确认已持久化的退货操作。")
 
 
 class CancelOrderTool(RepositoryBackedTool, Tool):
@@ -123,6 +112,4 @@ class CancelOrderTool(RepositoryBackedTool, Tool):
     input_model = OrderIdInput
 
     async def execute(self, parsed: OrderIdInput, context: ToolContext) -> ToolResult:
-        await self.repository.get_visible_order(parsed.order_id, context.user_id)
-        output = await self.repository.cancel_order(parsed.order_id, trace_id=context.trace_id)
-        return ToolResult(name=self.name, success=True, output=output)
+        raise ToolPermissionError("请通过 ActionService 确认已持久化的取消操作。")

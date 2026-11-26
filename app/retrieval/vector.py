@@ -10,11 +10,12 @@ from dataclasses import dataclass
 
 from app.core.exceptions import RetrievalError
 from app.providers.base import EmbeddingProvider
-from app.schemas.retrieval import RetrievedChunk
+from app.schemas.retrieval import RetrievalScope, RetrievedChunk
 
 logger = logging.getLogger(__name__)
 
 
+# 余弦相似度:对于已经进行 L2 归一化的向量，它们的点积就等于余弦相似度。
 def cosine(a: list[float], b: list[float]) -> float:
     return sum(x * y for x, y in zip(a, b, strict=False))
 
@@ -30,6 +31,7 @@ class VectorRecord:
     embedding: list[float]
 
 
+# 内存向量存储:数据保存在 Python 进程内存中
 class InMemoryVectorStore:
     """Used in tests and when Qdrant is unavailable."""
 
@@ -44,9 +46,13 @@ class InMemoryVectorStore:
             else:
                 self._records.append(record)
 
-    def search(self, query_vector: list[float], *, top_k: int) -> list[RetrievedChunk]:
+    def search(
+        self, query_vector: list[float], *, top_k: int, scope: RetrievalScope | None = None
+    ) -> list[RetrievedChunk]:
         scored: list[tuple[float, VectorRecord]] = [
-            (cosine(query_vector, record.embedding), record) for record in self._records
+            (cosine(query_vector, record.embedding), record)
+            for record in self._records
+            if scope is None or scope.allows(record.chunk)
         ]
         scored.sort(key=lambda item: item[0], reverse=True)
         results: list[RetrievedChunk] = []
@@ -62,6 +68,7 @@ class InMemoryVectorStore:
         return True
 
 
+# 外部向量数据库是 Qdrant:持久化保存向量和对应的文本信息
 class QdrantVectorStore:
     def __init__(self, url: str, collection: str, dim: int) -> None:
         self._url = url
@@ -104,6 +111,8 @@ class QdrantVectorStore:
                     "section": record.chunk.section,
                     "chunk_index": record.chunk.chunk_index,
                     "policy_version": record.chunk.policy_version,
+                    "snapshot_id": record.chunk.metadata.get("snapshot_id", ""),
+                    "source_digest": record.chunk.metadata.get("source_digest", ""),
                     "source": record.chunk.metadata.get("source", "knowledge"),
                 },
             )
@@ -119,7 +128,46 @@ class QdrantVectorStore:
         except Exception:
             return False
 
-    def search(self, query_vector: list[float], *, top_k: int) -> list[RetrievedChunk]:
+    def search(
+        self, query_vector: list[float], *, top_k: int, scope: RetrievalScope | None = None
+    ) -> list[RetrievedChunk]:
+        from qdrant_client.models import FieldCondition, Filter, MatchAny, MatchValue
+
+        if scope is not None and not scope.document_ids:
+            return []
+        query_filter = None
+        if scope is not None:
+            conditions = [
+                FieldCondition(key="snapshot_id", match=MatchValue(value=scope.snapshot_id)),
+                FieldCondition(key="document_id", match=MatchAny(any=scope.document_ids)),
+            ]
+            if scope.policy_versions is not None:
+                if not scope.policy_versions:
+                    return []
+                conditions.append(
+                    FieldCondition(key="policy_version", match=MatchAny(any=scope.policy_versions))
+                )
+            query_filter = Filter(must=[*conditions])
+            if scope.evidence is not None:
+                if not scope.evidence:
+                    return []
+                exact_sources = [
+                    Filter(
+                        must=[
+                            FieldCondition(
+                                key="document_id", match=MatchValue(value=ref.document_id)
+                            ),
+                            FieldCondition(
+                                key="policy_version", match=MatchValue(value=ref.policy_version)
+                            ),
+                            FieldCondition(
+                                key="source_digest", match=MatchValue(value=ref.source_digest)
+                            ),
+                        ]
+                    )
+                    for ref in scope.evidence
+                ]
+                query_filter = Filter(must=[*conditions, Filter(should=[*exact_sources])])
         try:
             client = self._ensure_client()
             hits = client.search(
@@ -127,6 +175,7 @@ class QdrantVectorStore:
                 query_vector=query_vector,
                 limit=top_k,
                 with_payload=True,
+                **({"query_filter": query_filter} if query_filter is not None else {}),
             )
         except Exception as exc:
             raise RetrievalError("qdrant search failed") from exc
@@ -145,7 +194,11 @@ class QdrantVectorStore:
                     section=payload.get("section"),
                     chunk_index=int(payload.get("chunk_index") or 0),
                     policy_version=str(payload.get("policy_version") or "v1"),
-                    metadata={"source": str(payload.get("source", "qdrant"))},
+                    metadata={
+                        "source": str(payload.get("source", "qdrant")),
+                        "snapshot_id": str(payload.get("snapshot_id", "")),
+                        "source_digest": str(payload.get("source_digest", "")),
+                    },
                 )
             )
         return results
@@ -158,12 +211,19 @@ class VectorRetriever:
         self.store = store
         self.embedder = embedder
 
-    async def search(self, query: str, *, top_k: int) -> list[RetrievedChunk]:
+    async def search(
+        self, query: str, *, top_k: int, scope: RetrievalScope | None = None
+    ) -> list[RetrievedChunk]:
         vectors = await self.embedder.embed([query])
         if not vectors:
             return []
         # Qdrant client is sync; do not block the event loop.
-        return await asyncio.to_thread(self.store.search, vectors[0], top_k=top_k)
+        return await asyncio.to_thread(
+            self.store.search,
+            vectors[0],
+            top_k=top_k,
+            **({"scope": scope} if scope is not None else {}),
+        )
 
     async def ping(self) -> bool:
         return await asyncio.to_thread(self.store.ping)

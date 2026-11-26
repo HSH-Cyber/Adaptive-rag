@@ -1,0 +1,24 @@
+{
+  "rules": [
+    {
+      "policy_id": "demo-unconditional-aftersales",
+      "revision": "v1",
+      "valid_from": "2000-01-01T00:00:00Z",
+      "valid_to": "2026-11-01T00:00:00Z",
+      "return_days": 7,
+      "source_path": "sources/v1.md",
+      "source_document_id": "demo-policy-v1",
+      "source_digest": "777be56255d1a1ab19c65350ec73a831d8c2b5e0e0ecf47acfffbc52cee0511c"
+    },
+    {
+      "policy_id": "demo-unconditional-aftersales",
+      "revision": "v2",
+      "valid_from": "2026-11-01T00:00:00Z",
+      "valid_to": null,
+      "return_days": 15,
+      "source_path": "sources/v2.md",
+      "source_document_id": "demo-policy-v2",
+      "source_digest": "171ee6eaacaff5d67c8bd55c3bb516cf49d7ec3d22159d648650bc3f5ed90761"
+    }
+  ]
+}

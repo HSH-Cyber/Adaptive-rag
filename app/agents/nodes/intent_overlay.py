@@ -11,6 +11,7 @@ import re
 
 from app.core.enums import IntentLabel
 
+#项目会在大模型分类之后进行一次纠正。
 _GREETING_ONLY = re.compile(
     r"^(你好|您好|hi|hello|早上好|哈喽|哈喽客服)(，在吗|在吗)?[!！。.~]*$",
     re.IGNORECASE,
@@ -117,7 +118,7 @@ def high_precision_intent(query: str) -> IntentLabel | None:
         return IntentLabel.ORDER_INQUIRY
     return None
 
-
+#先进行高精度规则判断。如果没有匹配到规则，就保留大模型结果。如果规则和大模型结果相同，就保留原结果。如果规则发现明显冲突，就使用规则纠正结果。
 def apply_intent_overlay(query: str, label: IntentLabel) -> tuple[IntentLabel, str | None]:
     forced = high_precision_intent(query)
     if forced is None or forced == label:

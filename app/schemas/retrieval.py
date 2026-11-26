@@ -25,6 +25,41 @@ class Citation(BaseModel):
     title: str
     chunk_id: str
     section: str | None = None
+    policy_version: str | None = None
+    source_digest: str | None = None
+
+
+class PolicySourceRef(BaseModel):
+    """One exact applicable source, rather than independent identifier sets."""
+
+    document_id: str
+    policy_version: str
+    source_digest: str
+
+
+class RetrievalScope(BaseModel):
+    """A policy snapshot and its allowed documents, applied before top_k."""
+
+    snapshot_id: str
+    document_ids: list[str]
+    policy_versions: list[str] | None = None
+    evidence: list[PolicySourceRef] | None = None
+
+    def allows(self, chunk: RetrievedChunk) -> bool:
+        return (
+            chunk.metadata.get("snapshot_id") == self.snapshot_id
+            and chunk.document_id in self.document_ids
+            and (self.policy_versions is None or chunk.policy_version in self.policy_versions)
+            and (
+                self.evidence is None
+                or any(
+                    ref.document_id == chunk.document_id
+                    and ref.policy_version == chunk.policy_version
+                    and ref.source_digest == chunk.metadata.get("source_digest")
+                    for ref in self.evidence
+                )
+            )
+        )
 
 
 class RetrievalRequest(BaseModel):

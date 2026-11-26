@@ -58,11 +58,13 @@ def build_graph(
     checker = FaithfulnessChecker(llm)
     summarizer = ConversationSummarizer(llm)
 
+    #程序需要知道当前处理到哪一步，也需要知道用户问了什么、找到了什么资料。
     graph = StateGraph(AgentState)
+    #在工作流程图中添加节点：节点可以简单理解成一个负责特定工作的函数。
     graph.add_node("apply_guardrail", guardrail_node)
     graph.add_node("classify_intent", partial(intent_node, classifier=classifier))
     graph.add_node("route_complexity", partial(router_node, router=adaptive))
-    graph.add_node(
+    graph.add_node(#搜索知识库
         "retrieve_docs",
         partial(
             retrieval_node,
@@ -77,12 +79,14 @@ def build_graph(
     graph.add_node("execute_tools", partial(executor_node, registry=registry, settings=settings))
     graph.add_node("generate_answer", partial(generate_node, llm=llm))
     graph.add_node("refuse_answer", refuse_node)
+    #判断答案是否有一依据
     graph.add_node("check_faithfulness", partial(faithfulness_node, checker=checker, llm=llm))
     graph.add_node("compact_memory", partial(memory_node, settings=settings, summarizer=summarizer))
 
     def _after_guardrail(state: AgentState) -> str:
         return "refuse_answer" if state.get("refused") else "classify_intent"
 
+    #表示整个工作流从 apply_guardrail 开始
     graph.add_edge(START, "apply_guardrail")
     graph.add_conditional_edges(
         "apply_guardrail",
@@ -93,7 +97,7 @@ def build_graph(
     graph.add_conditional_edges(
         "route_complexity",
         _route_after_complexity,
-        {
+        {#五路分流：根据问题的类型，决定下一步执行哪个节点。
             "generate_answer": "generate_answer",
             "refuse_answer": "refuse_answer",
             "retrieve_docs": "retrieve_docs",
